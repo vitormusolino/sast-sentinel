@@ -1,0 +1,22 @@
+# Configuração do SAST Sentinel para ESTE repositório (self-scan no CI).
+scan:
+  exclude:
+    - samples            # corpus propositalmente vulnerável (gabarito do benchmark)
+    - tests              # testes contêm payloads maliciosos de propósito
+    - dashboard/dist
+    - node_modules
+  bandit: true
+  semgrep: false        # habilitado no CI, onde o semgrep está instalado
+  min_severity: LOW
+
+ai:
+  enabled: false        # no CI não há GPU; a triagem por LLM roda na plataforma
+  max_findings: 30
+
+gate:
+  fail_on: HIGH                       # qualquer HIGH/CRITICAL novo bloqueia o PR
+  max_counts:
+    MEDIUM: 5                         # mais de 5 MEDIUM também bloqueia
+  min_confidence: MEDIUM
+  ignore_likely_false_positives: true
+  baseline: .sast-baseline.json       # dívida técnica conhecida não bloqueia

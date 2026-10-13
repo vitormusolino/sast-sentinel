@@ -1,0 +1,65 @@
+rules:
+  - id: flask-sqli-fstring
+    languages: [python]
+    severity: ERROR
+    message: 'Consulta SQL montada com f-string a partir de dados da requisicao Flask.'
+    metadata:
+      title: SQL Injection via f-string (Flask)
+      cwe: ["CWE-89"]
+      sast_severity: CRITICAL
+      confidence: HIGH
+      fix_hint: 'Use placeholders do driver - cursor.execute("... WHERE id = %s", (value,))'
+    mode: taint
+    pattern-sources:
+      - pattern: flask.request.$ANY.get(...)
+      - pattern: flask.request.$ANY[...]
+    pattern-sinks:
+      - patterns:
+          - pattern: $CUR.execute($Q, ...)
+          - focus-metavariable: $Q
+    pattern-sanitizers:
+      - pattern: int(...)
+
+  - id: python-ssrf-requests
+    languages: [python]
+    severity: ERROR
+    message: 'URL vinda da requisicao e usada em chamada HTTP de saida (SSRF).'
+    metadata:
+      title: Server-Side Request Forgery
+      cwe: ["CWE-918"]
+      sast_severity: HIGH
+      confidence: MEDIUM
+    mode: taint
+    pattern-sources:
+      - pattern: flask.request.$ANY.get(...)
+    pattern-sinks:
+      - pattern: requests.$METHOD($URL, ...)
+
+  - id: jwt-verify-disabled
+    languages: [python]
+    severity: ERROR
+    message: 'Token JWT decodificado sem verificar assinatura.'
+    metadata:
+      title: JWT sem verificacao de assinatura
+      cwe: ["CWE-347"]
+      sast_severity: HIGH
+      confidence: HIGH
+      fix_hint: 'Passe a chave e algorithms=["HS256"]; nunca use verify_signature=False.'
+    pattern-either:
+      - pattern: 'jwt.decode(..., options={..., "verify_signature": False, ...}, ...)'
+      - pattern: jwt.decode(..., verify=False, ...)
+
+  - id: js-nosql-injection
+    languages: [javascript]
+    severity: WARNING
+    message: 'Objeto da requisicao usado diretamente como filtro MongoDB (NoSQL injection).'
+    metadata:
+      title: NoSQL Injection
+      cwe: ["CWE-943"]
+      sast_severity: HIGH
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: $COL.find(req.body)
+      - pattern: $COL.findOne(req.body)
+      - pattern: $COL.find(req.query)
+      - pattern: $COL.findOne(req.query)

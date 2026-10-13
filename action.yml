@@ -1,0 +1,54 @@
+# GitHub Action reutilizavel: outros repositorios podem usar o SAST Sentinel como Security Gate.
+#
+#   - uses: <org>/<este-repo>@main
+#     with:
+#       path: .
+#       fail-on: HIGH
+name: SAST Sentinel Security Gate
+description: Analise estatica (AST + taint + Bandit/Semgrep) com Security Gate e SARIF
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  path:
+    description: Diretorio a analisar
+    default: "."
+  fail-on:
+    description: Severidade minima que reprova o gate (CRITICAL, HIGH, MEDIUM, LOW, NONE)
+    default: HIGH
+  baseline:
+    description: Arquivo de baseline (achados conhecidos nao reprovam)
+    default: ""
+  sarif:
+    description: Caminho do SARIF gerado
+    default: sast.sarif
+  upload-url:
+    description: URL da API do dashboard (opcional)
+    default: ""
+
+outputs:
+  sarif:
+    description: Caminho do arquivo SARIF
+    value: ${{ inputs.sarif }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - shell: bash
+      run: pip install "${{ github.action_path }}/engine[js,tools]"
+    - shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
+        INPUT_SARIF: ${{ inputs.sarif }}
+        INPUT_UPLOAD: ${{ inputs.upload-url }}
+      run: |
+        args=(scan "$INPUT_PATH" --bandit --fail-on "$INPUT_FAIL_ON" --sarif "$INPUT_SARIF" --github-summary --no-color)
+        [ -n "$INPUT_BASELINE" ] && args+=(--baseline "$INPUT_BASELINE")
+        [ -n "$INPUT_UPLOAD" ] && args+=(--upload "$INPUT_UPLOAD")
+        sast "${args[@]}"

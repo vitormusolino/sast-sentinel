@@ -1,0 +1,130 @@
+# Pipeline DevSecOps: todo Pull Request passa por SAST, segredos e dependencias.
+# Se o Security Gate reprovar, o job falha e (com branch protection) o merge fica BLOQUEADO.
+name: Security Gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sast:
+    name: SAST Sentinel (gate)
+    runs-on: ubuntu-latest
+    env:
+      SAST_API_URL: ${{ secrets.SAST_API_URL }}   # opcional: envia o resultado ao dashboard
+      SAST_API_KEY: ${{ secrets.SAST_API_KEY }}
+    permissions:
+      contents: read
+      security-events: write   # upload do SARIF para a aba Security > Code scanning
+      pull-requests: write     # comentario com o resumo no PR
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Instalar motor + Bandit + Semgrep
+        run: pip install "./engine[js,tools]" semgrep
+
+      - name: Executar SAST com Security Gate
+        id: gate
+        run: |
+          set +e
+          sast scan . --bandit --semgrep \
+            --sarif sast.sarif --markdown sast.md --json sast.json \
+            --github-summary --no-color
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Upload SARIF (GitHub Code Scanning)
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: sast.sarif
+          category: sast-sentinel
+        continue-on-error: true   # repositorios privados sem GHAS nao tem code scanning
+
+      - name: Comentar resultado no PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('sast.md', 'utf8') + '\n\n<!-- sast-sentinel -->';
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const previous = comments.find(c => c.body.includes('<!-- sast-sentinel -->'));
+            if (previous) await github.rest.issues.updateComment({ owner, repo, comment_id: previous.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+
+      - name: Enviar resultado para o dashboard
+        if: always() && env.SAST_API_URL != ''
+        run: sast scan . --no-fail --format json --upload "$SAST_API_URL" --project "${{ github.event.repository.name }}" > /dev/null
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sast-report
+          path: |
+            sast.sarif
+            sast.json
+            sast.md
+
+      - name: Security Gate
+        if: steps.gate.outputs.exit_code != '0'
+        run: |
+          echo "::error title=Security Gate reprovado::Vulnerabilidades acima da politica (.sast.yml). Veja o resumo do job."
+          exit 1
+
+  secrets:
+    name: Varredura de segredos (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  sca:
+    name: Dependencias vulneraveis (SCA)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: pip-audit (Python)
+        run: |
+          pip install pip-audit
+          pip-audit -r services/api/requirements.txt --desc --progress-spinner off
+      - name: npm audit (dashboard)
+        working-directory: dashboard
+        run: npm audit --omit=dev --audit-level=high
+
+  gate-demo:
+    name: Demonstracao - gate bloqueia codigo vulneravel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "./engine[js]"
+      - name: O gate DEVE reprovar samples/vulnerable_app
+        run: |
+          if sast scan samples/vulnerable_app --fail-on HIGH --markdown demo.md --no-color; then
+            echo "::error::O gate deveria ter bloqueado o codigo vulneravel!"
+            exit 1
+          fi
+          echo "Gate bloqueou corretamente o codigo vulneravel ✅" >> "$GITHUB_STEP_SUMMARY"
+          cat demo.md >> "$GITHUB_STEP_SUMMARY"
+      - name: O gate DEVE aprovar samples/safe_app
+        run: sast scan samples/safe_app --fail-on HIGH --no-color

@@ -1,0 +1,111 @@
+# SAST Sentinel - arquitetura completa containerizada
+#   docker compose up -d --build
+#   Dashboard: http://localhost:8080   API/Swagger: http://localhost:8000/docs
+#   Escalar workers: docker compose up -d --scale worker=4
+
+name: sast-sentinel
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql+psycopg://sast:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}@postgres:5432/sast
+  REDIS_URL: redis://redis:6379/0
+  OLLAMA_URL: http://ollama:11434
+  OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+  API_KEY: ${API_KEY:-}
+  AI_ENABLED_DEFAULT: ${AI_ENABLED_DEFAULT:-true}
+  AI_MAX_FINDINGS: ${AI_MAX_FINDINGS:-10}   # achados revisados pelo LLM por scan (CPU: ~30-45 s cada)
+  LLM_CACHE_DIR: /workspaces/.llm-cache     # respostas do LLM em cache (re-scan da demo fica instantâneo)
+  GATE_FAIL_ON: ${GATE_FAIL_ON:-HIGH}
+  CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+  WORKSPACE_DIR: /workspaces
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sast
+      POSTGRES_USER: sast
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sast -d sast"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+
+  # baixa o modelo uma unica vez (fica no volume `ollama`)
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on: [ollama]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "sleep 3 && ollama pull ${OLLAMA_MODEL:-llama3.2:3b}"]
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    image: sast-sentinel/api:latest
+    environment: *app-env
+    volumes:
+      - workspaces:/workspaces
+      - ./samples:/opt/samples:ro   # corpus de demonstração (seed)
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  worker:
+    image: sast-sentinel/api:latest
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=INFO", "--concurrency=2", "-Q", "scans"]
+    environment: *app-env
+    volumes:
+      - workspaces:/workspaces
+    depends_on:
+      api: { condition: service_started }
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.worker.celery_app inspect ping -d celery@$$HOSTNAME --timeout 5 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  dashboard:
+    build: ./dashboard
+    image: sast-sentinel/dashboard:latest
+    ports:
+      - "8080:80"
+    depends_on: [api]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  ollama:
+  workspaces:

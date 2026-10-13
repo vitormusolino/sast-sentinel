@@ -1,0 +1,13 @@
+title = "SAST Sentinel - gitleaks"
+
+[extend]
+useDefault = true
+
+# Os corpora de teste contem segredos FALSOS de proposito (gabarito do benchmark)
+[allowlist]
+description = "corpus de teste propositalmente vulneravel"
+paths = [
+  '''samples/''',
+  '''engine/tests/''',
+  '''docs/''',
+]

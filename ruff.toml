@@ -1,0 +1,14 @@
+target-version = "py310"
+line-length = 120
+
+[lint]
+select = ["E", "F", "W", "B", "UP", "SIM", "I"]
+ignore = [
+    "E501",  # linhas longas: tratadas pelo line-length acima onde importa
+]
+
+[lint.per-file-ignores]
+# padrão do FastAPI: Depends()/File()/Form() como valor default é a API oficial do framework
+"services/api/app/routers/*.py" = ["B008"]
+# testes: imports após configurar variáveis de ambiente são intencionais
+"services/api/tests/*.py" = ["E402"]
