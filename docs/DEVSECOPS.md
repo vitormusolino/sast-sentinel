@@ -59,7 +59,7 @@ jobs:
     permissions: { contents: read, security-events: write }
     steps:
       - uses: actions/checkout@v4
-      - uses: <org>/<repo-do-sast-sentinel>@main
+      - uses: vitormusolino/sast-sentinel@main
         with:
           fail-on: HIGH
           upload-url: ${{ secrets.SAST_API_URL }}

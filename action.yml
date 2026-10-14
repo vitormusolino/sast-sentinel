@@ -1,6 +1,6 @@
 # GitHub Action reutilizavel: outros repositorios podem usar o SAST Sentinel como Security Gate.
 #
-#   - uses: <org>/<este-repo>@main
+#   - uses: vitormusolino/sast-sentinel@main
 #     with:
 #       path: .
 #       fail-on: HIGH

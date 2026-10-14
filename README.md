@@ -117,7 +117,7 @@ Código de saída: `0` = gate aprovado, `1` = gate reprovado (é isso que bloque
 
 - [`.github/workflows/security-gate.yml`](.github/workflows/security-gate.yml) roda **SAST com gate**, publica o SARIF no GitHub Code Scanning, comenta o resumo no PR e envia o resultado ao dashboard. Também roda **Gitleaks** (segredos), **pip-audit/npm audit** (SCA) e uma demonstração de que o gate bloqueia o código vulnerável.
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda testes do motor (cobertura ≥ 80 %), benchmark, testes da API, build do dashboard e smoke test da stack Docker.
-- [`action.yml`](action.yml) é uma **GitHub Action reutilizável**, para que qualquer repositório use o SAST Sentinel com `uses: <org>/<repo>@main`.
+- [`action.yml`](action.yml) é uma **GitHub Action reutilizável**, para que qualquer repositório use o SAST Sentinel com `uses: vitormusolino/sast-sentinel@main`.
 
 Para **bloquear o merge** de fato: *Settings → Branches → Branch protection → Require status checks → `SAST Sentinel (gate)`*. Detalhes em [docs/DEVSECOPS.md](docs/DEVSECOPS.md).
 
@@ -163,10 +163,10 @@ Todo o código em `samples/` foi escrito pelo grupo **especificamente** para tes
 
 ## Equipe
 
-| Nome | RM | Responsabilidade |
-|---|---|---|
-| _preencher_ | | Motor SAST / taint |
-| _preencher_ | | IA / LLM |
-| _preencher_ | | API / infraestrutura |
-| _preencher_ | | Dashboard |
-| _preencher_ | | DevSecOps / documentação |
+| Nome | RM |
+|---|---|
+| Fernando Alexandre | RM555045 |
+| Gabriel Vallejo | RM554973 |
+| Lucas Catroppa | RM555450 |
+| Luiz Felipe | RM555074 |
+| Vitor Musolino | RM555012 |
