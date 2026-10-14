@@ -54,13 +54,16 @@ def seed(samples: Path, days: int) -> None:
     db.close()
 
 
+def find_samples() -> Path:
+    """Procura a pasta samples/ subindo a partir deste arquivo; no contêiner fica em /opt/samples."""
+    here = Path(__file__).resolve()
+    candidates = [p / "samples" for p in here.parents] + [Path("/opt/samples")]
+    return next((c for c in candidates if c.is_dir()), Path("samples"))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--samples", default=None, help="pasta samples/ (padrão: raiz do repositório ou /opt/samples)")
     parser.add_argument("--days", type=int, default=10)
     args = parser.parse_args()
-    if args.samples is None:
-        here = Path(__file__).resolve()
-        candidates = [p / "samples" for p in here.parents] + [Path("/opt/samples")]
-        args.samples = next((str(c) for c in candidates if c.is_dir()), "samples")
-    seed(Path(args.samples), args.days)
+    seed(Path(args.samples) if args.samples else find_samples(), args.days)

@@ -8,8 +8,10 @@ fazem o trabalho pesado de clonar, analisar e consultar o LLM.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from celery import Celery
@@ -110,6 +112,42 @@ def run_scan(self, scan_id: int, workspace: str | None = None) -> dict:
         return {"error": str(exc)}
     finally:
         cleanup(ws)
+        db.close()
+
+
+_executor = None
+_executor_lock = threading.Lock()
+
+
+def dispatch_scan(scan_id: int, workspace: str | None = None) -> None:
+    """Envia o scan para execução.
+
+    * `SCAN_RUNNER=celery` (padrão, docker compose): publica na fila Redis para os workers.
+    * `SCAN_RUNNER=thread` (deploy em contêiner único): roda em segundo plano no próprio
+      processo da API, sem Redis. A requisição responde na hora e o dashboard acompanha
+      o progresso normalmente.
+    """
+    global _executor
+    if settings.scan_runner == "thread" and not settings.celery_eager:
+        with _executor_lock:
+            if _executor is None:
+                _executor = ThreadPoolExecutor(max_workers=max(1, settings.scan_threads),
+                                               thread_name_prefix="scan")
+        _executor.submit(run_scan, scan_id, workspace)
+    else:
+        run_scan.delay(scan_id, workspace)
+
+
+def fail_interrupted_scans() -> int:
+    """No modo thread, scans que estavam na fila/rodando quando o processo reiniciou nunca terminarão."""
+    db = SessionLocal()
+    try:
+        stuck = db.query(Scan).filter(Scan.status.in_(["queued", "running"]), Scan.source_type != "ci").all()
+        for scan in stuck:
+            scan.status, scan.message, scan.finished_at = "failed", "interrompido por reinício do servidor", utcnow()
+        db.commit()
+        return len(stuck)
+    finally:
         db.close()
 
 

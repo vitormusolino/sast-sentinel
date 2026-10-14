@@ -27,7 +27,7 @@ from typing import Any
 
 from ..models import Finding, Severity
 from ..rules.catalog import get_rule
-from .llm import OllamaClient
+from .llm import OllamaClient, OpenAICompatClient, make_client
 
 SYSTEM_PROMPT = (
     "Você e um engenheiro de segurança de aplicacoes (AppSec) especialista em revisão de código e SAST. "
@@ -71,8 +71,8 @@ class AIConfig:
 
 
 class AIAnalyzer:
-    def __init__(self, client: OllamaClient | None = None, config: AIConfig | None = None):
-        self.client = client or OllamaClient()
+    def __init__(self, client: OllamaClient | OpenAICompatClient | None = None, config: AIConfig | None = None):
+        self.client = client or make_client()
         self.config = config or AIConfig()
 
     @property

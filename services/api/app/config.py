@@ -31,6 +31,14 @@ class Settings:
     default_fail_on: str = os.getenv("GATE_FAIL_ON", "HIGH")
     ai_default: bool = _bool("AI_ENABLED_DEFAULT", True)
     ai_max_findings: int = int(os.getenv("AI_MAX_FINDINGS", "10"))
+    # Modo "contêiner único" (deploy em Render/Railway/etc.): sem Redis nem workers separados.
+    #   celery = fila Redis + workers (docker compose) | thread = scans em segundo plano no próprio processo
+    scan_runner: str = os.getenv("SCAN_RUNNER", "celery").strip().lower()
+    scan_threads: int = int(os.getenv("SCAN_THREADS", "1"))
+    # pasta com o build do dashboard (vite build); se definida, a API também serve o frontend
+    static_dir: str = os.getenv("STATIC_DIR", "")
+    # popula o histórico de demonstração na subida se o banco estiver vazio (bom para disco efêmero)
+    seed_on_startup: bool = _bool("SEED_ON_STARTUP", False)
 
 
 settings = Settings()

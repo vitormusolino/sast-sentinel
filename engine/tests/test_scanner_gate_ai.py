@@ -267,3 +267,42 @@ def test_unsupported_language_is_not_approved(tmp_path):
     assert any("Go" in e["error"] for e in result.errors)
     gate = evaluate(result, GatePolicy(), baseline=set())
     assert not gate.passed and gate.to_dict()["status"] == "NOT_ANALYZED"
+
+
+def test_openai_compat_client_and_selection(monkeypatch, tmp_path):
+    import httpx
+    from sast_engine.ai.llm import OllamaClient, OpenAICompatClient, make_client
+
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    assert isinstance(make_client(), OllamaClient)
+    monkeypatch.setenv("LLM_API_KEY", "chave-de-teste")
+    client = make_client()
+    assert isinstance(client, OpenAICompatClient) and client.model == "llama-3.1-8b-instant"
+
+    class Resp:
+        def __init__(self, status, data):
+            self.status_code, self._data = status, data
+
+        def json(self):
+            return self._data
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise httpx.HTTPStatusError("erro", request=None, response=None)
+
+    calls = []
+    monkeypatch.setattr(httpx, "get", lambda url, headers, timeout: Resp(200, {"data": []}))
+
+    def fake_post(url, json, headers, timeout):
+        calls.append(json)
+        if "response_format" in json:  # simula provedor sem modo JSON
+            return Resp(400, {})
+        return Resp(200, {"choices": [{"message": {"content": '```json\n{"severity": "HIGH"}\n```'}}]})
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    client = OpenAICompatClient("https://exemplo/v1", "k", "m", cache_dir=str(tmp_path))
+    assert client.available()
+    assert client.generate_json("prompt")["severity"] == "HIGH"
+    assert client.generate_json("prompt")["severity"] == "HIGH"  # cache
+    assert len(calls) == 2 and "response_format" not in calls[1]
+    assert OpenAICompatClient("https://exemplo/v1", "", "m").available() is False

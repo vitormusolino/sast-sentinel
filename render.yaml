@@ -1,0 +1,28 @@
+# Blueprint do Render: deploy com 1 clique (New -> Blueprint -> escolha este repositório).
+# Plano gratuito: dorme após 15 min sem acesso (acorda em ~1 min) e o disco é efêmero;
+# o histórico de demonstração é recriado sozinho a cada subida (SEED_ON_STARTUP).
+services:
+  - type: web
+    name: sast-sentinel
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.deploy
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      # IA online (opcional): crie uma chave gratuita em https://console.groq.com/keys
+      # e cole aqui quando o Render pedir. Deixe em branco para usar só a triagem heurística.
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: LLM_MODEL
+        value: llama-3.1-8b-instant
+      - key: AI_ENABLED_DEFAULT
+        value: "true"
+      - key: GATE_FAIL_ON
+        value: HIGH
+      # protege o endpoint /api/scans/import (usado pelo CI)
+      - key: API_KEY
+        generateValue: true

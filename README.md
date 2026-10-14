@@ -9,7 +9,7 @@ Plataforma de **Static Application Security Testing** que analisa código-fonte 
 |---|---|
 | **Linguagens** | **Python** (AST + taint interprocedural) · **Java** (Tree-sitter + taint intraprocedural) · **JavaScript** (regras Tree-sitter) · Go, PHP, C#, TypeScript, Kotlin, Ruby, Rust, C/C++, Swift, Scala via **fallback Semgrep** |
 | **Motores** | AST próprio · Taint analysis · Tree-sitter · Bandit · Semgrep |
-| **IA** | Ollama (Llama 3.x) local: triagem, severidade, remediação verificada |
+| **IA** | Ollama (Llama 3.x) local, ou qualquer API compatível com OpenAI (ex.: Groq) no deploy online: triagem, severidade, remediação verificada |
 | **Backend** | FastAPI · PostgreSQL · Redis + Celery (assíncrono, escalável) |
 | **Frontend** | React + Recharts (dashboard executivo) |
 | **DevSecOps** | Docker Compose · GitHub Actions · SARIF · Gitleaks · pip-audit |
@@ -70,6 +70,19 @@ docker compose exec api python -m app.seed --samples /opt/samples --days 10
 ```
 
 Para escalar os workers: `docker compose up -d --scale worker=4`. Com GPU NVIDIA: `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d`.
+
+### Apresentar online (link público, plano gratuito)
+
+O `Dockerfile.deploy` empacota **API + dashboard + SQLite em um único contêiner** (sem Redis, Postgres nem Ollama), que roda no plano gratuito do [Render](https://render.com) com ~150 MB de RAM. As análises rodam em segundo plano dentro do próprio processo e o histórico de demonstração é criado sozinho na subida.
+
+1. Crie uma conta no Render entrando com o GitHub.
+2. **New → Blueprint** → escolha este repositório. O `render.yaml` já configura tudo.
+3. Quando ele pedir `LLM_API_KEY`, cole uma chave gratuita do [Groq](https://console.groq.com/keys) para ter a **IA funcionando online** (ou deixe em branco: a triagem cai para a heurística).
+4. Em ~5 min o link `https://sast-sentinel-xxxx.onrender.com` está no ar (dashboard na raiz, Swagger em `/docs`).
+
+> Plano gratuito: o serviço **dorme após 15 min sem acesso** e leva ~1 min para acordar; abra o link um pouco antes de apresentar. O disco é efêmero: scans feitos ao vivo somem quando ele reinicia, mas a demo volta sozinha.
+
+A mesma imagem roda em qualquer lugar: `docker build -f Dockerfile.deploy -t sast-sentinel:deploy . && docker run -p 8000:8000 sast-sentinel:deploy`. A arquitetura completa (workers Celery, Postgres, Ollama local) continua sendo a Opção 1.
 
 ### Opção 2: desenvolvimento local (sem Docker)
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
@@ -9,10 +11,25 @@ from ..db import get_db
 
 router = APIRouter(tags=["misc"])
 
+# o health check da plataforma de deploy bate aqui a cada poucos segundos: o status do LLM
+# fica em cache para não gastar a cota da API de IA (nem esperar timeout do Ollama) toda vez
+_LLM_TTL = 60.0
+_llm_cache: dict[str, object] = {"at": -_LLM_TTL, "value": None}
+
+
+def _llm_status() -> dict:
+    from sast_engine.ai import make_client
+
+    now = time.monotonic()
+    if now - float(_llm_cache["at"]) >= _LLM_TTL:
+        client = make_client(timeout=3)
+        _llm_cache["value"] = {"available": client.available(), "model": client.model, "url": client.base_url}
+        _llm_cache["at"] = now
+    return dict(_llm_cache["value"])  # type: ignore[arg-type]
+
 
 @router.get("/api/health")
 def health(db: Session = Depends(get_db)):
-    from sast_engine.ai import OllamaClient
     from sast_engine.integrations import tool_available
     from sast_engine.parsers.js_parser import TREE_SITTER_AVAILABLE
 
@@ -21,11 +38,10 @@ def health(db: Session = Depends(get_db)):
         db_ok = True
     except Exception:  # noqa: BLE001
         db_ok = False
-    client = OllamaClient(timeout=3)
     return {
         "status": "ok" if db_ok else "degraded",
         "database": db_ok,
-        "llm": {"available": client.available(), "model": client.model, "url": client.base_url},
+        "llm": _llm_status(),
         "tools": {"bandit": tool_available("bandit"), "semgrep": tool_available("semgrep"),
                   "tree_sitter": TREE_SITTER_AVAILABLE},
     }

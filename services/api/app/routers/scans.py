@@ -12,7 +12,7 @@ from ..config import settings
 from ..db import get_db
 from ..serializers import finding_out, scan_out
 from ..services import get_or_create_project, persist_result
-from ..worker import run_scan
+from ..worker import dispatch_scan
 from ..workspace import WorkspaceError, cleanup, extract_zip, new_workspace, validate_git_url
 
 router = APIRouter(prefix="/api/scans", tags=["scans"])
@@ -94,7 +94,7 @@ async def create_upload_scan(
                        options={"ai": ai, "bandit": bandit, "semgrep": semgrep, "fail_on": fail_on})
     db.add(scan)
     db.commit()
-    run_scan.delay(scan.id, str(ws))
+    dispatch_scan(scan.id, str(ws))
     db.refresh(scan)
     return scan_out(scan)
 
@@ -111,7 +111,7 @@ def create_git_scan(req: GitScanRequest, db: Session = Depends(get_db)):
                        options=req.model_dump(include={"ai", "bandit", "semgrep", "fail_on", "exclude"}))
     db.add(scan)
     db.commit()
-    run_scan.delay(scan.id)
+    dispatch_scan(scan.id)
     db.refresh(scan)
     return scan_out(scan)
 

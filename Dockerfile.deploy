@@ -1,0 +1,62 @@
+# Imagem ÚNICA para apresentar o projeto online (Render, Railway, Koyeb, Fly.io, Cloud Run...).
+# API + dashboard + SQLite no mesmo contêiner, sem Redis/Postgres/Ollama: cabe no plano gratuito.
+#
+#   docker build -f Dockerfile.deploy -t sast-sentinel:deploy .
+#   docker run -p 8000:8000 sast-sentinel:deploy        -> http://localhost:8000
+#
+# IA opcional: defina LLM_API_KEY (ex.: chave gratuita do Groq). Sem ela, a triagem usa a heurística.
+# Para a arquitetura completa (Postgres + Redis + workers + Ollama), use o docker-compose.yml.
+
+# ---- 1) build do dashboard (React + Vite) -------------------------------------------------
+FROM node:20-alpine AS dashboard
+WORKDIR /src
+COPY dashboard/package.json dashboard/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY dashboard/ ./
+RUN npm run build
+
+# ---- 2) API + motor ------------------------------------------------------------------------
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY services/api/requirements.txt /tmp/requirements.txt
+RUN pip install -r /tmp/requirements.txt
+
+COPY engine /opt/engine
+RUN pip install /opt/engine
+
+COPY services/api/app /app/app
+COPY --from=dashboard /src/dist /app/static
+COPY samples /opt/samples
+
+RUN useradd --create-home --uid 10001 sast \
+    && mkdir -p /data /workspaces \
+    && chown -R sast:sast /data /workspaces /app
+USER sast
+
+ENV SCAN_RUNNER=thread \
+    DATABASE_URL=sqlite:////data/sast.db \
+    STATIC_DIR=/app/static \
+    SEED_ON_STARTUP=true \
+    WORKSPACE_DIR=/workspaces \
+    LLM_CACHE_DIR=/data/llm-cache \
+    AI_MAX_FINDINGS=8 \
+    MAX_UPLOAD_MB=20 \
+    PORT=8000
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"PORT\"]}/api/health', timeout=4)" || exit 1
+
+# a plataforma de deploy define $PORT; 1 processo só (os scans rodam em thread dentro dele)
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]
