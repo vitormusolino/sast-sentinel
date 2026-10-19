@@ -30,7 +30,7 @@ Sugestão: um integrante por bloco; ensaiem com cronômetro.
 | 3. Scan | *Varreduras → Upload .zip* do `vulnerable_app` com IA marcada (já em cache, termina em segundos) | Abrir um CRITICAL de SQL Injection: o caminho do taint passando de `app.py` para `db.py` |
 | 4. IA | No mesmo achado: "Análise da IA" e "Código corrigido sugerido" | Selo **✓ verificado pelo motor**; guardrails (a IA não apaga achados) |
 | 5. Triagem | Marcar um achado como falso positivo | A decisão vale para os próximos scans (fingerprint estável) |
-| 6. Terminal (opcional) | `docker compose exec api sast scan /opt/samples/vulnerable_app` | O mesmo motor na CLI, o código de saída 1 é o que bloqueia o pipeline |
+| 6. Terminal (opcional) | No **PowerShell**: `docker compose exec api sast scan /opt/samples/vulnerable_app` (no Git Bash, prefixe com `MSYS_NO_PATHCONV=1`, senão o caminho é convertido) | O mesmo motor na CLI, o código de saída 1 é o que bloqueia o pipeline |
 | 7. GitHub | PR #1 | Gate vermelho, comentário "⛔ BLOQUEADO", alerta do Code Scanning na linha, botão de merge bloqueado |
 
 **Plano B:** se o Docker ou o Ollama falharem, mostrem o PR #1 no GitHub e as Actions verdes da `main`. Tudo isso funciona sem o notebook.
