@@ -13,7 +13,8 @@ Plataforma de **Static Application Security Testing** que analisa código-fonte 
 | **Backend** | FastAPI · PostgreSQL · Redis + Celery (assíncrono, escalável) |
 | **Frontend** | React + Recharts (dashboard executivo) |
 | **DevSecOps** | Docker Compose · GitHub Actions · SARIF · Gitleaks · pip-audit |
-| **Precisão medida** | **96 % de precisão / 96 % de recall** em 50 vulnerabilidades anotadas, 3 linguagens ([benchmark](docs/BENCHMARK.md)) |
+| **Precisão medida** | **96,2 % de precisão / 100 % de recall** em 50 vulnerabilidades anotadas, 3 linguagens ([benchmark](docs/BENCHMARK.md)) |
+| **Acesso** | Login com sessão segura (scrypt, cookie HttpOnly/SameSite, bloqueio de força bruta), perfis admin/analista |
 
 ---
 
@@ -46,7 +47,8 @@ Detalhes (C4 nível 1 a 3, sequência de um scan e decisões de arquitetura): [d
 5. **IA com guardrails**: o LLM pode ajustar a severidade em no máximo um nível e só marca falso positivo com confiança ≥ 0,8 (≥ 0,9 para fluxos de taint). A IA **nunca apaga** achados.
 6. **Remediação auto-verificada**: o patch sugerido pelo LLM é aplicado em memória, recompilado e **reanalisado pelo próprio motor**; só é marcado como ✓ verificado se a vulnerabilidade desaparece.
 7. **Security Gate com baseline**: só achados **novos** bloqueiam o PR, então a dívida técnica conhecida não trava o time. As decisões de triagem persistem entre scans.
-8. **A plataforma se analisa (dogfooding)**: o próprio repositório passa pelo gate em todo PR. O gate já encontrou e bloqueou um SHA-1 no nosso código.
+8. **A plataforma se analisa (dogfooding)**: o próprio repositório passa pelo gate em todo PR. O gate já encontrou e bloqueou um SHA-1 no nosso código e um falso positivo da própria regra de segredos (`credentials: "same-origin"`), que virou correção + teste.
+9. **Autenticação com boas práticas**: senhas com scrypt + salt, token de sessão em cookie `HttpOnly` + `SameSite=Strict` (só o hash fica no banco), bloqueio após 5 tentativas, mensagem idêntica para usuário inexistente, sem senha padrão e perfis admin/analista ([docs/SEGURANCA.md](docs/SEGURANCA.md)).
 
 ## Como rodar
 
@@ -59,7 +61,7 @@ docker compose up -d --build  # 1ª vez baixa o modelo do Ollama (~2 GB)
 
 | Serviço | URL |
 |---|---|
-| Dashboard | http://localhost:8080 |
+| Dashboard | http://localhost:8080 (login: `admin` + `ADMIN_PASSWORD` do `.env`) |
 | API + Swagger | http://localhost:8000/docs |
 | Ollama | http://localhost:11434 |
 

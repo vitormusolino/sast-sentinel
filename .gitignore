@@ -16,3 +16,5 @@ sast-report.*
 *.sarif
 .claude/
 .ruff_cache/
+*.db-shm
+*.db-wal

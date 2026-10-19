@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { api } from "./api.js";
+import { UNAUTHORIZED_EVENT, api } from "./api.js";
+import Login from "./pages/Login.jsx";
 import Overview from "./pages/Overview.jsx";
 import Rules from "./pages/Rules.jsx";
 import ScanDetail from "./pages/ScanDetail.jsx";
 import Scans from "./pages/Scans.jsx";
+import Users from "./pages/Users.jsx";
 
 function useHashRoute() {
   const parse = () => {
@@ -34,15 +36,25 @@ function readTheme() {
 
 export default function App() {
   const { path, query } = useHashRoute();
+  // undefined = verificando sessão · null = não logado · objeto = usuário logado
+  const [user, setUser] = useState(undefined);
   const [projects, setProjects] = useState([]);
   const [projectId, setProjectId] = useState("");
   const [health, setHealth] = useState(null);
   const [theme, setTheme] = useState(readTheme);
 
   useEffect(() => {
+    api.me().then(setUser).catch(() => setUser(null));
+    const onUnauthorized = () => setUser(null);
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
     api.projects().then(setProjects).catch(() => {});
     api.health().then(setHealth).catch(() => setHealth({ status: "down" }));
-  }, [path]);
+  }, [path, user]);
 
   useEffect(() => {
     if (theme === "auto") document.documentElement.removeAttribute("data-theme");
@@ -54,11 +66,25 @@ export default function App() {
     }
   }, [theme]);
 
+  const logout = async () => {
+    try {
+      await api.logout();
+    } finally {
+      setUser(null);
+      setProjects([]);
+      navigate("/");
+    }
+  };
+
+  if (user === undefined) return null; // evita "piscar" a tela de login enquanto verifica a sessão
+  if (user === null) return <Login onLogin={setUser} />;
+
   const scanMatch = path.match(/^\/scans\/(\d+)/);
   let page;
   if (scanMatch) page = <ScanDetail scanId={scanMatch[1]} query={query} navigate={navigate} />;
   else if (path.startsWith("/scans")) page = <Scans projectId={projectId} navigate={navigate} />;
   else if (path.startsWith("/rules")) page = <Rules />;
+  else if (path.startsWith("/users")) page = <Users user={user} />;
   else page = <Overview projectId={projectId} navigate={navigate} />;
 
   const link = (to, label) => {
@@ -79,6 +105,7 @@ export default function App() {
           {link("/", "Dashboard")}
           {link("/scans", "Varreduras")}
           {link("/rules", "Regras")}
+          {link("/users", user.role === "admin" ? "Usuários" : "Conta")}
         </nav>
         <div className="spacer" />
         {health && (
@@ -97,6 +124,10 @@ export default function App() {
           <option value="light">Claro</option>
           <option value="dark">Escuro</option>
         </select>
+        <div className="user-menu">
+          <span className="secondary" title={user.role === "admin" ? "administrador" : "analista"}>{user.username}</span>
+          <button className="btn" onClick={logout}>Sair</button>
+        </div>
       </header>
       <main>{page}</main>
     </>

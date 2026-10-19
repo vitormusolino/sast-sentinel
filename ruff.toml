@@ -10,5 +10,6 @@ ignore = [
 [lint.per-file-ignores]
 # padrão do FastAPI: Depends()/File()/Form() como valor default é a API oficial do framework
 "services/api/app/routers/*.py" = ["B008"]
+"services/api/app/auth.py" = ["B008"]
 # testes: imports após configurar variáveis de ambiente são intencionais
 "services/api/tests/*.py" = ["E402"]

@@ -14,6 +14,9 @@ x-app-env: &app-env
   LLM_BASE_URL: ${LLM_BASE_URL:-https://api.groq.com/openai/v1}
   LLM_MODEL: ${LLM_MODEL:-llama-3.1-8b-instant}
   API_KEY: ${API_KEY:-}
+  ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}       # vazio = senha aleatória exibida no log da api
+  SESSION_HOURS: ${SESSION_HOURS:-8}
   AI_ENABLED_DEFAULT: ${AI_ENABLED_DEFAULT:-true}
   AI_MAX_FINDINGS: ${AI_MAX_FINDINGS:-10}   # achados revisados pelo LLM por scan (CPU: ~30-45 s cada)
   LLM_CACHE_DIR: /workspaces/.llm-cache     # respostas do LLM em cache (re-scan da demo fica instantâneo)

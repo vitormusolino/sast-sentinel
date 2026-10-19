@@ -15,7 +15,9 @@ from ..services import get_or_create_project, persist_result
 from ..worker import dispatch_scan
 from ..workspace import WorkspaceError, cleanup, extract_zip, new_workspace, validate_git_url
 
-router = APIRouter(prefix="/api/scans", tags=["scans"])
+router = APIRouter(prefix="/api/scans", tags=["scans"])  # protegido por sessão (ver main.py)
+# ingestão do CI/CD: autentica por X-API-Key (máquina), não por sessão de usuário
+ci_router = APIRouter(prefix="/api/scans", tags=["ci"])
 
 SEV_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
 
@@ -116,7 +118,7 @@ def create_git_scan(req: GitScanRequest, db: Session = Depends(get_db)):
     return scan_out(scan)
 
 
-@router.post("/import", status_code=201, dependencies=[Depends(require_api_key)])
+@ci_router.post("/import", status_code=201, dependencies=[Depends(require_api_key)])
 def import_scan(req: ImportRequest, db: Session = Depends(get_db)):
     """Recebe o resultado de um scan executado no pipeline CI/CD (CLI `sast scan --upload`)."""
     proj = get_or_create_project(db, req.project[:200], req.repo_url)

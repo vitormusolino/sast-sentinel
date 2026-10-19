@@ -10,13 +10,14 @@ import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
+from .auth import current_user, ensure_admin
 from .config import settings
 from .db import init_db
-from .routers import findings, metrics, misc, scans
+from .routers import auth, findings, metrics, misc, scans
 
 logger = logging.getLogger("sast.api")
 
@@ -48,6 +49,7 @@ def _seed_if_empty() -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    ensure_admin()
     if settings.scan_runner == "thread":
         from .worker import fail_interrupted_scans
 
@@ -68,6 +70,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_credentials=True,  # cookie de sessão (só para as origens da allowlist acima)
     allow_headers=["Content-Type", "X-API-Key"],
 )
 
@@ -81,9 +84,13 @@ async def security_headers(request, call_next):
     return response
 
 
-app.include_router(scans.router)
-app.include_router(findings.router)
-app.include_router(metrics.router)
+# tudo exige sessão de usuário, exceto login/health (públicos) e a ingestão do CI (X-API-Key)
+_logged_in = [Depends(current_user)]
+app.include_router(auth.router)
+app.include_router(scans.ci_router)
+app.include_router(scans.router, dependencies=_logged_in)
+app.include_router(findings.router, dependencies=_logged_in)
+app.include_router(metrics.router, dependencies=_logged_in)
 app.include_router(misc.router)
 
 

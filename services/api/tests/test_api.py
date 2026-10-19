@@ -12,7 +12,11 @@ os.environ.update({
     "AI_ENABLED_DEFAULT": "0",
     "API_KEY": "ci-test-key",
     "OLLAMA_URL": "http://127.0.0.1:9",  # porta fechada -> modo heuristico
+    "ADMIN_USERNAME": "admin",
+    "ADMIN_PASSWORD": "Senha-de-Teste-123",
+    "LOGIN_MAX_ATTEMPTS": "3",
 })
+ADMIN = {"username": "admin", "password": "Senha-de-Teste-123"}
 
 import pytest  # noqa: E402
 from app.main import app  # noqa: E402
@@ -24,6 +28,7 @@ SAMPLES = Path(__file__).resolve().parents[3] / "samples"
 @pytest.fixture(scope="module")
 def client():
     with TestClient(app) as c:
+        assert c.post("/api/auth/login", json=ADMIN).status_code == 200
         yield c
 
 

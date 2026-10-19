@@ -58,6 +58,9 @@ Despacho dinâmico (`getattr`), shell implícito via `sh -c` e validação semâ
 **O que é o fingerprint e por que não usar arquivo:linha?**
 `sha1(regra + arquivo + trecho normalizado)`. Se alguém adiciona 10 linhas acima, `arquivo:linha` mudaria e o achado pareceria "novo" e "corrigido" ao mesmo tempo. O fingerprint é estável.
 
+**Tem controle de acesso?**
+Sim: login com scrypt, sessão em cookie `HttpOnly`/`SameSite=Strict` (só o hash do token no banco), bloqueio de força bruta, mensagem idêntica para usuário inexistente, sem senha padrão e perfis admin/analista. O CI entra com uma chave de máquina separada. Detalhes em `docs/SEGURANCA.md`.
+
 **Como garantem que a própria plataforma é segura?**
 Ela passa pelo próprio gate (dogfooding: já pegou um SHA-1 nosso), tem proteção contra Zip Slip e zip bomb, allowlist de hosts git (anti-SSRF), roda com usuário sem privilégios, usa CSP no nginx e API key na ingestão, e não executa o código analisado.
 

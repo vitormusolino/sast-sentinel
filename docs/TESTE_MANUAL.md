@@ -2,6 +2,8 @@
 
 Pré-requisito: a stack rodando (`docker compose up -d`) e o dashboard em http://localhost:8080.
 
+**Login:** usuário `admin` e a senha definida em `ADMIN_PASSWORD` no `.env`. Se ela estiver vazia, a senha gerada aparece em `docker compose logs api`. Para criar contas de analista, use *Usuários* no menu.
+
 ## 4 formas de analisar código
 
 | Forma | Como | Bom para |
@@ -119,6 +121,12 @@ Em *Repositório Git*, use um projeto open source pequeno (ex.: `https://github.
   - outras linguagens: aviso de "não analisado" e gate **⚠ sem análise**, nunca "aprovado".
 - **Repositório privado:** não é aceito (por segurança, credenciais na URL são recusadas). Alternativa: baixar o .zip pelo GitHub e enviar como upload.
 - **Ética:** o código enviado é analisado só localmente (o LLM roda no Ollama da própria máquina) e o workspace é apagado ao fim do scan.
+
+### 11. Segurança do login
+- senha errada 5 vezes seguidas: na 6ª tentativa aparece "muitas tentativas" (bloqueio de 5 min);
+- usuário inexistente: mesma mensagem de senha errada (não revela quem existe);
+- crie um *analista* em *Usuários*, entre com ele em outra janela anônima: ele vê scans, mas não a gestão de usuários;
+- clique em *Sair* e volte com o botão "voltar" do navegador: a API recusa (sessão revogada no servidor).
 
 ## Testes automatizados
 ```powershell

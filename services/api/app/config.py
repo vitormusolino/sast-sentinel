@@ -39,6 +39,15 @@ class Settings:
     static_dir: str = os.getenv("STATIC_DIR", "")
     # popula o histórico de demonstração na subida se o banco estiver vazio (bom para disco efêmero)
     seed_on_startup: bool = _bool("SEED_ON_STARTUP", False)
+    # --- autenticação do dashboard/API
+    # usuário admin criado na primeira subida (sem senha padrão: se vazia, é gerada e exibida no log)
+    admin_username: str = os.getenv("ADMIN_USERNAME", "admin")
+    admin_password: str = os.getenv("ADMIN_PASSWORD", "")
+    session_hours: int = int(os.getenv("SESSION_HOURS", "8"))
+    # True quando servido por HTTPS (o cookie só trafega cifrado); em localhost/http deve ser False
+    cookie_secure: bool = _bool("COOKIE_SECURE", False)
+    login_max_attempts: int = int(os.getenv("LOGIN_MAX_ATTEMPTS", "5"))
+    login_lock_minutes: int = int(os.getenv("LOGIN_LOCK_MINUTES", "5"))
 
 
 settings = Settings()

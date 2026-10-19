@@ -7,6 +7,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from .. import models
+from ..auth import current_user
 from ..db import get_db
 
 router = APIRouter(tags=["misc"])
@@ -47,7 +48,7 @@ def health(db: Session = Depends(get_db)):
     }
 
 
-@router.get("/api/projects")
+@router.get("/api/projects", dependencies=[Depends(current_user)])
 def list_projects(db: Session = Depends(get_db)):
     rows = db.execute(
         select(models.Project, func.count(models.Scan.id), func.max(models.Scan.created_at))
@@ -57,7 +58,7 @@ def list_projects(db: Session = Depends(get_db)):
              "last_scan": last.isoformat() if last else None} for p, n, last in rows]
 
 
-@router.get("/api/rules")
+@router.get("/api/rules", dependencies=[Depends(current_user)])
 def list_rules():
     from sast_engine.rules import RULES
 
