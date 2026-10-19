@@ -22,7 +22,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -e "engine[js,tools,dev]" ruff
+      - run: pip install -e "engine[js,tools,dev,pdf]" ruff
       - name: Lint (ruff)
         run: ruff check engine services
       - name: Testes unitarios

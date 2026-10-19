@@ -72,6 +72,7 @@ jobs:
 
 | Formato | Uso |
 |---|---|
+| **PDF** | relatório para pessoas: resumo executivo, gate, achados por severidade, detalhes com código, caminho do taint, correção e análise da IA; botão no dashboard e artefato `sast-relatorio.pdf` em todo PR |
 | **SARIF 2.1.0** | GitHub Code Scanning (alertas inline no PR), VS Code (SARIF Viewer). Inclui `codeFlows`, então o caminho do taint aparece passo a passo no GitHub |
 | **Markdown** | comentário no PR e `$GITHUB_STEP_SUMMARY` |
 | **JSON** | integração com outras ferramentas e upload para o dashboard |

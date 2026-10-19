@@ -74,6 +74,8 @@ def cmd_scan(args: argparse.Namespace) -> int:
     md = to_markdown(result, gate)
     if args.markdown:
         Path(args.markdown).write_text(md, encoding="utf-8")
+    if args.pdf:
+        _write_pdf(args, result, gate)
     summary_file = os.getenv("GITHUB_STEP_SUMMARY")
     if summary_file and args.github_summary:
         with open(summary_file, "a", encoding="utf-8") as fh:
@@ -92,6 +94,27 @@ def cmd_scan(args: argparse.Namespace) -> int:
     if args.upload:
         _upload(args, result, gate)
     return 0 if gate.passed or args.no_fail else 1
+
+
+def _write_pdf(args: argparse.Namespace, result, gate) -> None:
+    try:
+        from .pdf_report import build_pdf
+    except ImportError:  # pragma: no cover
+        print("aviso: PDF requer reportlab: pip install \"sast-engine[pdf]\"", file=sys.stderr)
+        return
+    data = result.to_dict()
+    meta = {
+        "project": args.project or Path(args.path).resolve().name,
+        "source": "ci" if os.getenv("CI") else "cli",
+        "source_ref": os.getenv("GITHUB_REPOSITORY") or str(Path(args.path).resolve()),
+        "branch": os.getenv("GITHUB_HEAD_REF") or os.getenv("GITHUB_REF_NAME") or _git("rev-parse", "--abbrev-ref", "HEAD"),
+        "commit": os.getenv("GITHUB_SHA") or _git("rev-parse", "HEAD"),
+        **{k: data.get(k) for k in ("files_scanned", "lines_of_code", "engines", "counts", "ai_stats")},
+    }
+    try:
+        Path(args.pdf).write_bytes(build_pdf(meta, data["findings"], gate.to_dict(), errors=data.get("errors")))
+    except ImportError:
+        print("aviso: PDF requer reportlab: pip install \"sast-engine[pdf]\"", file=sys.stderr)
 
 
 def _upload(args: argparse.Namespace, result, gate) -> None:
@@ -152,6 +175,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--json", help="grava relatório JSON neste arquivo")
     s.add_argument("--sarif", help="grava SARIF neste arquivo")
     s.add_argument("--markdown", help="grava resumo Markdown neste arquivo")
+    s.add_argument("--pdf", help="grava relatório em PDF (leitura humana) neste arquivo; requer o extra [pdf]")
     s.add_argument("--github-summary", action="store_true", help="anexa resumo em $GITHUB_STEP_SUMMARY")
     s.add_argument("--fail-on", help="severidade mínima que reprova o gate (CRITICAL/HIGH/MEDIUM/LOW/NONE)")
     s.add_argument("--baseline", help="arquivo de baseline: achados conhecidos não reprovam")

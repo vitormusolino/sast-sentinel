@@ -29,6 +29,7 @@ Sugestão: um integrante por bloco; ensaiem com cronômetro.
 | 2. Dashboard | Visão executiva | KPIs, tendência caindo (o time corrigindo), severidade, top 5 arquivos críticos, CWEs |
 | 3. Scan | *Varreduras → Upload .zip* do `vulnerable_app` com IA marcada (já em cache, termina em segundos) | Abrir um CRITICAL de SQL Injection: o caminho do taint passando de `app.py` para `db.py` |
 | 4. IA | No mesmo achado: "Análise da IA" e "Código corrigido sugerido" | Selo **✓ verificado pelo motor**; guardrails (a IA não apaga achados) |
+| 5b. Relatório | Botão **Baixar relatório (PDF)** no scan | Resumo executivo para gestores + detalhes técnicos com a correção verificada; o SARIF fica para ferramentas |
 | 5. Triagem | Marcar um achado como falso positivo | A decisão vale para os próximos scans (fingerprint estável) |
 | 6. Terminal (opcional) | No **PowerShell**: `docker compose exec api sast scan /opt/samples/vulnerable_app` (no Git Bash, prefixe com `MSYS_NO_PATHCONV=1`, senão o caminho é convertido) | O mesmo motor na CLI, o código de saída 1 é o que bloqueia o pipeline |
 | 7. GitHub | PR #1 | Gate vermelho, comentário "⛔ BLOQUEADO", alerta do Code Scanning na linha, botão de merge bloqueado |

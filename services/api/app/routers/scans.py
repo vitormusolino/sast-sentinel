@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -185,6 +185,28 @@ def scan_sarif(scan_id: int, db: Session = Depends(get_db)):
     scan = _get_scan(db, scan_id)
     findings = [EngineFinding.from_dict(finding_out(f)) for f in scan.findings]
     return to_sarif(ScanResult(target=scan.source_ref or "", findings=findings))
+
+
+@router.get("/{scan_id}/report.pdf")
+def scan_report_pdf(scan_id: int, db: Session = Depends(get_db)):
+    """Relatório para leitura humana (resumo executivo + detalhes), ao contrário do SARIF, que é para ferramentas."""
+    from sast_engine.pdf_report import build_pdf
+
+    scan = _get_scan(db, scan_id)
+    if scan.status != "completed":
+        raise HTTPException(409, "a análise ainda não terminou")
+    data = scan_out(scan)
+    meta = {
+        "project": data["project"], "scan_id": scan.id, "date": data["created_at"], "source": scan.source_type,
+        "source_ref": scan.source_ref, "branch": scan.branch, "commit": scan.commit_sha,
+        "files_scanned": scan.files_scanned, "lines_of_code": scan.lines_of_code, "engines": scan.engines,
+        "counts": scan.counts, "new_count": scan.new_count, "fixed_count": scan.fixed_count, "ai_stats": scan.ai_stats,
+    }
+    pdf = build_pdf(meta, [finding_out(f) for f in scan.findings], scan.gate or None,
+                    summary=(scan.ai_summary or {}).get("text"), errors=scan.errors)
+    safe_name = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in (data["project"] or "projeto"))[:60]
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="relatorio-{safe_name}-scan-{scan.id}.pdf"'})
 
 
 @router.delete("/{scan_id}", status_code=204)

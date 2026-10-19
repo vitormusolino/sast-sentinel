@@ -126,3 +126,12 @@ def test_git_url_validation(client, url):
 def test_rules_and_projects(client):
     assert any(r["id"] == "TAINT-SQLI" for r in client.get("/api/rules").json())
     assert any(p["name"] == "demo" for p in client.get("/api/projects").json())
+
+
+def test_pdf_report(client):
+    scan_id = upload(client, SAMPLES / "vulnerable_app", "relatorio").json()["id"]
+    r = client.get(f"/api/scans/{scan_id}/report.pdf")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/pdf"
+    assert r.content.startswith(b"%PDF") and len(r.content) > 5000
+    assert "relatorio-relatorio-scan-" in r.headers["content-disposition"]

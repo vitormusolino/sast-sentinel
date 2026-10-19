@@ -122,7 +122,11 @@ Em *Repositório Git*, use um projeto open source pequeno (ex.: `https://github.
 - **Repositório privado:** não é aceito (por segurança, credenciais na URL são recusadas). Alternativa: baixar o .zip pelo GitHub e enviar como upload.
 - **Ética:** o código enviado é analisado só localmente (o LLM roda no Ollama da própria máquina) e o workspace é apagado ao fim do scan.
 
-### 11. Segurança do login
+### 11. Relatório em PDF
+Abra um scan e clique em **Baixar relatório (PDF)**.
+**Esperado:** capa com o resultado do gate e as contagens por severidade, resumo executivo, tabela de todos os achados e, para cada crítico/alto, o código, o caminho do dado, como corrigir e (se houve IA) a análise e o código corrigido com o selo de verificação. O botão **SARIF** baixa o formato técnico, para ferramentas.
+
+### 12. Segurança do login
 - senha errada 5 vezes seguidas: na 6ª tentativa aparece "muitas tentativas" (bloqueio de 5 min);
 - usuário inexistente: mesma mensagem de senha errada (não revela quem existe);
 - crie um *analista* em *Usuários*, entre com ele em outra janela anônima: ele vê scans, mas não a gestão de usuários;

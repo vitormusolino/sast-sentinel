@@ -323,3 +323,24 @@ def test_context_engineering_includes_taint_evidence_and_helpers():
     prompt = client.prompts[0]
     assert "NENHUM fluxo de dado externo" in prompt  # o taint não achou fluxo: evidência para o LLM
     assert "def to_int(v):" in prompt                  # helper fora da função entra no contexto
+
+
+def test_pdf_report_cli(tmp_path):
+    pytest.importorskip("reportlab")
+    out = tmp_path / "relatorio.pdf"
+    main(["scan", str(SAMPLES / "vulnerable_app"), "--pdf", str(out), "--format", "markdown", "--no-fail"])
+    data = out.read_bytes()
+    assert data.startswith(b"%PDF") and len(data) > 10_000
+
+
+def test_pdf_report_handles_ai_and_odd_characters():
+    pytest.importorskip("reportlab")
+    from sast_engine.pdf_report import build_pdf
+
+    finding = {"rule_id": "TAINT-SQLI", "title": "SQL <Injection> & co", "effective_severity": "CRITICAL",
+               "cwe": "CWE-89", "file": "app.py", "line": 3, "message": "fluxo → sink ✓", "snippet": "x" * 300,
+               "trace": [{"file": "app.py", "line": 1, "description": "Source"}], "remediation": "use ?",
+               "ai": {"mode": "llm", "model": "m", "explanation": "ok", "fixed_code": "cur.execute(q, (x,))",
+                      "fix_verified": True}, "status": "open"}
+    pdf = build_pdf({"project": "p", "counts": {"CRITICAL": 1}}, [finding], {"passed": False, "reasons": ["r"]})
+    assert pdf.startswith(b"%PDF")

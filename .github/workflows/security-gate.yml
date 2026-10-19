@@ -29,14 +29,14 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Instalar motor + Bandit + Semgrep
-        run: pip install "./engine[js,tools]" semgrep
+        run: pip install "./engine[js,tools,pdf]" semgrep
 
       - name: Executar SAST com Security Gate
         id: gate
         run: |
           set +e
           sast scan . --bandit --semgrep \
-            --sarif sast.sarif --markdown sast.md --json sast.json \
+            --sarif sast.sarif --markdown sast.md --json sast.json --pdf sast-relatorio.pdf \
             --github-summary --no-color
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
@@ -71,6 +71,7 @@ jobs:
         with:
           name: sast-report
           path: |
+            sast-relatorio.pdf
             sast.sarif
             sast.json
             sast.md

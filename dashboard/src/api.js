@@ -59,4 +59,5 @@ export const api = {
   scanGit: (payload) => request("/api/scans/git", json("POST", payload)),
   scanUpload: (form) => request("/api/scans/upload", { method: "POST", body: form }),
   sarifUrl: (id) => `${BASE}/api/scans/${id}/sarif`,
+  reportUrl: (id) => `${BASE}/api/scans/${id}/report.pdf`,
 };

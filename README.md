@@ -13,6 +13,7 @@ Plataforma de **Static Application Security Testing** que analisa código-fonte 
 | **Backend** | FastAPI · PostgreSQL · Redis + Celery (assíncrono, escalável) |
 | **Frontend** | React + Recharts (dashboard executivo) |
 | **DevSecOps** | Docker Compose · GitHub Actions · SARIF · Gitleaks · pip-audit |
+| **Relatórios** | **PDF para leitura humana** (resumo executivo, achados, detalhes e correções) · SARIF para ferramentas · Markdown no PR · JSON |
 | **Precisão medida** | **96,2 % de precisão / 100 % de recall** em 50 vulnerabilidades anotadas, 3 linguagens ([benchmark](docs/BENCHMARK.md)) |
 | **Acesso** | Login com sessão segura (scrypt, cookie HttpOnly/SameSite, bloqueio de força bruta), perfis admin/analista |
 
@@ -107,6 +108,7 @@ cd dashboard && npm install && npm run dev   # http://localhost:5173
 pip install -e "engine[js,tools]"
 sast scan samples/vulnerable_app -v                 # relatório no terminal + gate
 sast scan . --sarif out.sarif --markdown out.md     # relatórios
+sast scan . --pdf relatorio.pdf                      # relatório em PDF (pip install "engine[pdf]")
 sast scan . --ai                                    # triagem com LLM local (requer Ollama)
 sast baseline . -o .sast-baseline.json              # congela a dívida técnica atual
 sast benchmark samples                              # precisão/recall vs. gabarito

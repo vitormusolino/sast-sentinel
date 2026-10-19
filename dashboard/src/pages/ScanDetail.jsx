@@ -191,7 +191,8 @@ export default function ScanDetail({ scanId, query, navigate }) {
           </p>
         </div>
         <div className="toolbar" style={{ margin: 0 }}>
-          {scan.status === "completed" && <a className="btn" href={api.sarifUrl(scan.id)} download={`scan-${scan.id}.sarif`}>Baixar SARIF</a>}
+          {scan.status === "completed" && <a className="btn primary" href={api.reportUrl(scan.id)} title="Relatório para leitura: resumo, achados, detalhes e correções">Baixar relatório (PDF)</a>}
+          {scan.status === "completed" && <a className="btn" href={api.sarifUrl(scan.id)} download={`scan-${scan.id}.sarif`} title="Formato técnico para ferramentas (GitHub Code Scanning, VS Code)">SARIF</a>}
           {scan.status === "completed" && <Gate passed={scan.gate_passed} />}
         </div>
       </div>
