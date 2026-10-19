@@ -9,5 +9,6 @@ description = "corpus de teste propositalmente vulneravel"
 paths = [
   '''samples/''',
   '''engine/tests/''',
+  '''services/api/tests/''',   # senhas fictícias dos testes de autenticação
   '''docs/''',
 ]
