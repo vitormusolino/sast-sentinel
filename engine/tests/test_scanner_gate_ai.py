@@ -306,3 +306,20 @@ def test_openai_compat_client_and_selection(monkeypatch, tmp_path):
     assert client.generate_json("prompt")["severity"] == "HIGH"  # cache
     assert len(calls) == 2 and "response_format" not in calls[1]
     assert OpenAICompatClient("https://exemplo/v1", "", "m").available() is False
+
+
+def test_context_engineering_includes_taint_evidence_and_helpers():
+    src = (
+        "def to_int(v):\n"
+        "    return int(v)\n"
+        "\n"
+        "def view(cur, request):\n"
+        "    oid = to_int(request.args.get('id'))\n"
+        "    cur.execute(f'SELECT * FROM t WHERE id = {oid}')\n"
+    )
+    client = FakeClient({"is_false_positive": False, "confidence": 0.5, "severity": "HIGH"})
+    finding = Finding("PY006", "SQL", "m", Severity.HIGH, "CWE-89", "app.py", 6, engine="ast")
+    AIAnalyzer(client, AIConfig()).enrich([finding], {"app.py": src})
+    prompt = client.prompts[0]
+    assert "NENHUM fluxo de dado externo" in prompt  # o taint não achou fluxo: evidência para o LLM
+    assert "def to_int(v):" in prompt                  # helper fora da função entra no contexto

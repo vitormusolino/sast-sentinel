@@ -37,7 +37,7 @@ Por linguagem: **Java 11/11 detectadas, 0 FP** (`java_app` + `SafeController.jav
 **5. Ameaças à validade (honestidade científica):**
 - O corpus foi escrito pelo mesmo grupo que escreveu o motor, o que gera **viés de construção**. Mitigamos com `hard_cases/` (feito para quebrar o motor) e `safe_app/` (feito para gerar FPs), mas o número real em código de terceiros tende a ser menor.
 - O corpus é pequeno (50 vulnerabilidades). Próximos passos: rodar contra benchmarks públicos como o **OWASP Benchmark** (Java) e projetos propositalmente vulneráveis com licença aberta (ex.: *DVPWA*, *PyGoat*), respeitando as licenças.
-- A precisão da **IA** não está neste número: o benchmark roda sem LLM, para ser determinístico e reprodutível no CI.
+- A precisão da **IA** não está neste número: o benchmark do CI roda sem LLM, para ser determinístico. A medição com LLM (`--ai`) está em [IA.md](IA.md#resultado-medido-a-ia-reduz-falsos-positivos): os modelos locais (3B e 7B) **não** eliminaram os 2 FPs, mas também não descartaram nenhuma vulnerabilidade real.
 
 ## Evolução durante o desenvolvimento
 | Mudança | Efeito medido |

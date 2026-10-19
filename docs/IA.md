@@ -62,6 +62,11 @@ Sugestões de correção de LLM costumam (a) não compilar ou (b) não corrigir 
 
 No primeiro teste real, o modelo de 3B copiava a severidade do exemplo do prompt e alterou a severidade de 29 de 29 achados. Trocamos o exemplo por placeholders, pedimos explicitamente para manter a severidade da regra sem motivo concreto e proibimos rebaixar fluxos de taint comprovados: as alterações caíram para 0.
 
+### Engenharia de contexto
+O LLM só vê o trecho da função onde está o achado. Para ele não decidir às cegas, o prompt inclui também:
+- a **evidência do taint analysis**: quando uma regra de injeção dispara, mas o taint (que entende `int()`, escapes e allowlists) não encontrou fluxo de dado externo até a linha, isso é dito explicitamente;
+- o **código das funções auxiliares** do mesmo arquivo chamadas no trecho (ex.: um `to_int()` que sanitiza o valor).
+
 ### Fallback heurístico
 Sem Ollama (CI sem GPU, máquina fraca), a plataforma **não quebra**: usa a remediação e o exemplo de correção do catálogo, reduz a severidade de achados em arquivos de teste e eleva a confiança de achados confirmados por vários motores. O modo usado aparece em cada achado (`ai.mode`).
 
@@ -71,6 +76,22 @@ docker compose up -d ollama ollama-pull        # baixa o modelo
 OLLAMA_URL=http://localhost:11434 sast scan samples/vulnerable_app --ai -v
 ```
 No dashboard, abra um achado CRITICAL: veja "Análise da IA", "Código corrigido sugerido" e o selo **✓ verificado pelo motor**.
+
+## Resultado medido: a IA reduz falsos positivos?
+`sast benchmark samples/hard_cases --ai` passa **todos** os achados pelo LLM e mede o efeito. O corpus tem 2 falsos positivos conhecidos (SQL com valor já convertido por `to_int()` e redirect validado por `urlparse`).
+
+| | `llama3.2:3b` | `qwen2.5-coder:7b` |
+|---|---:|---:|
+| Falsos positivos descartados | 0 de 2 | 0 de 2 |
+| Vulnerabilidades reais descartadas por engano | 0 | 0 |
+| Correções sugeridas **verificadas pelo motor** | 1 de 6 | 2 de 6 |
+| Tempo (6 achados, CPU) | ~6 min | ~10 min |
+
+**Análise crítica:** mesmo recebendo a evidência do taint e o código de `to_int()`, o qwen respondeu "mesmo que os valores sejam convertidos para inteiros, ainda assim há SQL injection", **com confiança 1,0**. Modelos locais pequenos são **conservadores e confiantes demais**: não pioram o resultado (zero vulnerabilidades reais descartadas), mas também não eliminam os falsos positivos difíceis. Isso valida duas decisões:
+1. **a IA nunca decide sozinha**: o achado nunca é apagado, e a confiança declarada pelo modelo não basta;
+2. **o valor da IA está na explicação e na correção verificada**, não na triagem automática. Um modelo maior ou servido em nuvem (suportado via `LLM_API_KEY`) é o caminho para triagem real.
+
+Para usar o modelo de código: `OLLAMA_MODEL=qwen2.5-coder:7b` no `.env` (cerca de 5 GB; precisa de uns 8 GB de RAM livres).
 
 ## Como avaliamos a IA
 - `tests/test_scanner_gate_ai.py` usa um LLM *fake* determinístico para provar os guardrails (FP com 0,85 em taint **não** é aceito; a severidade proposta INFO vira HIGH, ou seja, -1 nível) e a verificação (um patch real é aceito, um patch falso é recusado, um patch quebrado dá SyntaxError).

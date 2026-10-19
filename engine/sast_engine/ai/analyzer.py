@@ -41,7 +41,7 @@ PROMPT_TEMPLATE = """Achado da ferramenta SAST:
 - Severidade atribuída pela regra: {severity}
 - Mensagem: {message}
 - Arquivo: {file}, linha {line}
-{trace_block}
+{trace_block}{context_block}
 Trecho de código (linhas {start}-{end}; a linha marcada com >> e a do achado):
 ```{lang}
 {numbered}
@@ -58,6 +58,8 @@ Responda apenas com este JSON:
 """
 
 SEVERITY_NAMES = {s.name for s in Severity}
+# CWEs de injeção/fluxo: para estes, a ausência de fluxo no taint é evidência relevante para o LLM
+INJECTION_CWES = {"CWE-89", "CWE-78", "CWE-95", "CWE-22", "CWE-918", "CWE-79", "CWE-601", "CWE-502", "CWE-117"}
 TEST_PATH_HINTS = ("/tests/", "/test/", "test_", "_test.py", "/fixtures/", "conftest.py", "/spec/", ".spec.js", ".test.js")
 
 
@@ -74,6 +76,7 @@ class AIAnalyzer:
     def __init__(self, client: OllamaClient | OpenAICompatClient | None = None, config: AIConfig | None = None):
         self.client = client or make_client()
         self.config = config or AIConfig()
+        self._taint_lines: set[tuple[str, int]] = set()
 
     @property
     def llm_available(self) -> bool:
@@ -83,6 +86,8 @@ class AIAnalyzer:
     def enrich(self, findings: list[Finding], sources: dict[str, str]) -> dict[str, Any]:
         """Enriquece os achados in-place. Retorna estatisticas da triagem."""
         use_llm = self.llm_available
+        # linhas onde o taint comprovou um fluxo (usado como evidência no prompt)
+        self._taint_lines = {(f.file, f.line) for f in findings if f.engine == "taint" or "taint" in f.confirmed_by}
         ordered = sorted(findings, key=lambda f: (-int(f.severity), f.engine != "taint"))
         stats = {"mode": "llm" if use_llm else "heuristic", "model": self.client.model if use_llm else None,
                  "llm_reviewed": 0, "likely_false_positives": 0, "fixes_verified": 0, "severity_changed": 0}
@@ -126,6 +131,26 @@ class AIAnalyzer:
         return {"mode": "heuristic", "text": " ".join(parts)}
 
     # ------------------------------------------------------------------ LLM
+    def _extra_context(self, finding: Finding, source: str, start: int, end: int) -> str:
+        """Engenharia de contexto: o que o LLM não vê no trecho, mas o motor determinístico sabe.
+
+        1. Evidência do taint analysis: se a regra é de injeção e o taint (que entende int(),
+           escape, allowlists...) NÃO encontrou fluxo de dado externo até a linha, isso é dito.
+        2. Definição das funções do mesmo arquivo chamadas no trecho (ex.: um helper `to_int()`
+           que sanitiza o valor e fica fora da função analisada).
+        """
+        parts: list[str] = []
+        if finding.engine != "taint" and finding.cwe in INJECTION_CWES and finding.file.endswith(".py") \
+                and (finding.file, finding.line) not in self._taint_lines:
+            parts.append("- Evidência do motor de taint analysis: NENHUM fluxo de dado externo não sanitizado "
+                         "(request, input, argv...) alcança esta linha. Os valores interpolados vêm de constantes "
+                         "ou foram convertidos/sanitizados. Considere isso ao decidir se é explorável.")
+        helpers = called_helpers(source, start, end) if finding.file.endswith(".py") else []
+        if helpers:
+            parts.append("- Funções auxiliares do mesmo arquivo usadas no trecho:\n```python\n"
+                         + "\n\n".join(helpers) + "\n```")
+        return ("\n".join(parts) + "\n") if parts else ""
+
     def _llm_review(self, finding: Finding, source: str) -> dict[str, Any] | None:
         lines = source.splitlines()
         start, end = enclosing_block(source, finding.line)
@@ -138,7 +163,8 @@ class AIAnalyzer:
         prompt = PROMPT_TEMPLATE.format(
             rule_id=finding.rule_id, title=finding.title, cwe=finding.cwe, owasp=finding.owasp or "-",
             severity=finding.severity.name, message=finding.message, file=finding.file, line=finding.line,
-            trace_block=trace_block, start=start, end=end, numbered=numbered,
+            trace_block=trace_block, context_block=self._extra_context(finding, source, start, end),
+            start=start, end=end, numbered=numbered,
             lang="javascript" if finding.file.endswith((".js", ".jsx", ".mjs")) else "python",
         )
         data = self.client.generate_json(prompt, SYSTEM_PROMPT)
@@ -228,6 +254,30 @@ def clean_llm_text(text: str) -> str:
         values = [v for v in data.values() if isinstance(v, str)]
         return " ".join(values) if values else stripped
     return stripped if not isinstance(data, str) else data
+
+
+def called_helpers(source: str, start: int, end: int, max_helpers: int = 3, max_lines: int = 20) -> list[str]:
+    """Código-fonte das funções do mesmo arquivo chamadas entre as linhas start..end."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    defs = {n.name: n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    lines = source.splitlines()
+    called: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and start <= getattr(node, "lineno", 0) <= end:
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else None
+            if name in defs and name not in called and not (start <= defs[name].lineno <= end):
+                called.append(name)
+    out = []
+    for name in called[:max_helpers]:
+        fn = defs[name]
+        body = lines[fn.lineno - 1:(fn.end_lineno or fn.lineno)]
+        if len(body) <= max_lines:
+            out.append("\n".join(body))
+    return out
 
 
 def enclosing_block(source: str, line: int, max_lines: int = 40, radius: int = 8) -> tuple[int, int]:

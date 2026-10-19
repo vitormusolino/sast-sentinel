@@ -28,7 +28,7 @@ Tempo sugerido: **15 min de apresentação + 5 min de perguntas**. Cada integran
    ```
 3. **Benchmark (30 s):** `sast benchmark samples` mostra a tabela vs. Bandit.
 4. **IA (2 min):** no dashboard, *Nova varredura → upload de `samples/vulnerable_app` (zip) com IA ligada*. Abra um CRITICAL e mostre a explicação, o cenário de exploração, o código corrigido e o selo **✓ verificado pelo motor**. Explique os guardrails.
-5. **Pipeline (2 min):** abra o PR que adiciona `os.system("ping " + request.args["h"])`. Mostre o job vermelho, o **comentário automático no PR**, o alerta inline (Code Scanning) e o merge bloqueado. Depois mostre o commit de correção deixando o check verde.
+5. **Pipeline (2 min):** mostre o PR de demonstração [vitormusolino/sast-sentinel#1](https://github.com/vitormusolino/sast-sentinel/pull/1), já aberto e bloqueado. Se quiser fazer ao vivo: abra o PR que adiciona `os.system("ping " + request.args["h"])`. Mostre o job vermelho, o **comentário automático no PR**, o alerta inline (Code Scanning) e o merge bloqueado. Depois mostre o commit de correção deixando o check verde.
 
 **Plano B:** se o Ollama estiver lento, use o modo heurístico (o dashboard mostra "modo heurístico") e mostre os testes com LLM *fake* que provam os guardrails. Grave um vídeo da demo como backup.
 
@@ -42,6 +42,9 @@ Em 5 camadas: (1) filtros de contexto nas regras (literal constante, placeholder
 
 **E se o LLM alucinar?**
 Ele não tem poder de veto: muda a severidade em no máximo ±1, só sugere FP com alta confiança e o achado nunca é apagado. E o código que ele sugere é **verificado pelo motor**: se não compila ou se a vulnerabilidade continua, o patch é marcado como não verificado.
+
+**A IA realmente reduz falsos positivos?**
+Medimos (`sast benchmark --ai`): com modelos locais de 3B e 7B, **não**. Eles não descartaram nenhum dos 2 falsos positivos difíceis, mas também não descartaram nenhuma vulnerabilidade real. O qwen chegou a errar com confiança 1,0, e é exatamente por isso que a IA não tem poder de veto. O ganho concreto está nas explicações e nas correções verificadas pelo motor (2 de 6 com o qwen). Mostrar isso é análise crítica: preferimos medir a prometer.
 
 **Por que LLM local e não o GPT/Claude?**
 Confidencialidade e propriedade intelectual do código analisado (o próprio enunciado exige isso), custo zero por chamada e funcionamento offline. O trade-off é a qualidade menor de modelos pequenos, compensada pelos guardrails e pela verificação.

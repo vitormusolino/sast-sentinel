@@ -133,7 +133,7 @@ def cmd_rules(args: argparse.Namespace) -> int:
 def cmd_benchmark(args: argparse.Namespace) -> int:
     from .benchmark import run_benchmark
 
-    report = run_benchmark(args.path, compare_bandit=not args.no_bandit)
+    report = run_benchmark(args.path, compare_bandit=not args.no_bandit, use_ai=args.ai)
     print(report)
     if args.output:
         Path(args.output).write_text(report, encoding="utf-8")
@@ -181,6 +181,7 @@ def build_parser() -> argparse.ArgumentParser:
     bm.add_argument("path")
     bm.add_argument("-o", "--output")
     bm.add_argument("--no-bandit", action="store_true")
+    bm.add_argument("--ai", action="store_true", help="mede também a triagem por LLM (lento em CPU)")
     bm.set_defaults(func=cmd_benchmark)
     return p
 

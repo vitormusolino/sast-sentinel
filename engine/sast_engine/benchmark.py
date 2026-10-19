@@ -78,7 +78,7 @@ def score(findings: list[Finding], truth: set[tuple[str, int, str]]) -> tuple[Me
     return total, dict(per_cwe)
 
 
-def run_benchmark(root: str | Path, compare_bandit: bool = True) -> str:
+def run_benchmark(root: str | Path, compare_bandit: bool = True, use_ai: bool = False) -> str:
     root = Path(root).resolve()
     truth = load_ground_truth(root)
     rows: list[tuple[str, Metrics, dict[str, Metrics]]] = []
@@ -97,6 +97,11 @@ def run_benchmark(root: str | Path, compare_bandit: bool = True) -> str:
             c_total, c_per = score(combo.findings, truth)
             rows.append(("SAST Sentinel + Bandit (consenso)", c_total, c_per))
 
+    ai_section: list[str] = []
+    if use_ai:
+        ai_row, ai_section = _ai_benchmark(root, truth)
+        rows.append(ai_row)
+
     out = ["# Benchmark de Precisão SAST", "",
            f"Corpus: `{root.name}`, {len(truth)} vulnerabilidades anotadas (gabarito `# EXPECT:`).", "",
            "| Ferramenta | TP | FP | FN | Precisão | Recall | F1 |", "|---|---:|---:|---:|---:|---:|---:|"]
@@ -109,4 +114,39 @@ def run_benchmark(root: str | Path, compare_bandit: bool = True) -> str:
         out += ["", "### Falsos positivos", ""] + [f"- `{i}`" for i in sorted(rows[0][1].fp_items)]
     if rows[0][1].fn_items:
         out += ["", "### Falsos negativos", ""] + [f"- `{i}`" for i in sorted(rows[0][1].fn_items)]
-    return "\n".join(out) + "\n"
+    return "\n".join(out + ai_section) + "\n"
+
+
+def _ai_benchmark(root: Path, truth: set[tuple[str, int, str]]) -> tuple[tuple, list[str]]:
+    """Mede o efeito da triagem por LLM: achados marcados como `likely_false_positive` saem do relatório.
+
+    Ganho = FPs removidos. Dano = verdadeiros positivos que a IA descartou (o recall cai).
+    Todos os achados passam pelo LLM (sem o limite de AI_MAX_FINDINGS), para medir de forma justa.
+    """
+    from .ai import AIAnalyzer, AIConfig
+
+    result = Scanner(ScanConfig()).scan_path(root)
+    base = root
+    sources = {p.relative_to(base).as_posix(): p.read_text(encoding="utf-8-sig", errors="replace")
+               for p in base.rglob("*") if p.suffix in {".py", ".js", ".java"}}
+    analyzer = AIAnalyzer(config=AIConfig(max_llm_findings=10_000))
+    stats = analyzer.enrich(result.findings, sources)
+    total, per = score(result.findings, truth)
+    model = stats.get("model") or "heurística"
+    discarded = [f for f in result.findings if f.status == "likely_false_positive"]
+    good = [f for f in discarded if (f.file, f.line, f.cwe) not in truth]
+    bad = [f for f in discarded if (f.file, f.line, f.cwe) in truth]
+    llm = [f for f in result.findings if f.ai and f.ai.get("mode") == "llm"]
+    verified = sum(1 for f in llm if f.ai.get("fix_verified"))
+    lines = ["", "## Triagem por IA", "",
+             f"Modelo: `{model}` · modo: {stats['mode']} · {stats['llm_reviewed']} achados revisados pelo LLM.", "",
+             "| Métrica | Valor |", "|---|---:|",
+             f"| Falsos positivos descartados corretamente | {len(good)} |",
+             f"| Verdadeiros positivos descartados por engano | {len(bad)} |",
+             f"| Correções sugeridas e **verificadas pelo motor** | {verified} de {len(llm)} |",
+             f"| Severidades ajustadas (±1 nível) | {stats['severity_changed']} |"]
+    if discarded:
+        lines += ["", "Achados que a IA marcou como provável falso positivo:", ""]
+        lines += [f"- `{f.file}:{f.line}` {f.rule_id} ({f.cwe}) - confiança {f.ai.get('confidence')} - "
+                  f"{'correto' if f in good else 'ERRO: era vulnerabilidade real'}" for f in discarded]
+    return (f"SAST Sentinel + triagem IA ({model})", total, per), lines
