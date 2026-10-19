@@ -61,6 +61,10 @@ FastAPI params     loops, with, try         secure_filename (CWE-22)  requests.g
 - **~45 sinks** em 8 categorias: SQLi (89), Command Injection (78), Code Injection (95), Path Traversal (22), SSRF (918), XSS (79, inclusive `return f"<p>{x}</p>"` em rotas), desserialização (502), Open Redirect (601) e Log Injection (117).
 - **Sanitizadores por categoria**: cada um declara *quais* CWEs neutraliza. `shlex.quote(x)` usado em SQL continua sendo SQL Injection, um erro real e comum que ferramentas simples não percebem.
 
+### Despacho dinâmico e shell implícito
+- `getattr(os, "system")(cmd)` e `runner = getattr(os, "system"); runner(cmd)` são resolvidos para `os.system`;
+- `subprocess.run(["sh", "-c", cmd])` (também `bash`, `cmd /c`, `powershell -Command`) é tratado como `shell=True`.
+
 ### Sensibilidade ao fluxo
 A análise percorre as instruções **em ordem**:
 - **reatribuição mata o taint**: em `x = request.args["x"]; x = "fixo"; os.system(x)` não há achado;
@@ -103,8 +107,7 @@ O CWE do Bandit é **normalizado** (ex.: B105 usa CWE-259 e nós usamos CWE-798;
 
 | Limitação | Exemplo | Mitigação / trabalho futuro |
 |---|---|---|
-| Despacho dinâmico | `getattr(os, "system")(cmd)` | resolver `getattr` com string constante |
-| Shell implícito | `subprocess.run(["sh", "-c", cmd])` | detectar `sh/bash -c` como sink |
+| Despacho dinâmico com nome **calculado** | `getattr(os, nome_vindo_do_banco)(cmd)` | `getattr` com string **constante** e aliases (`runner = os.system`) já são resolvidos |
 | Validação semântica | `if urlparse(u).netloc: u = "/"` | a triagem por LLM reconhece; modelar mais validadores |
 | Ponteiros/aliasing complexos | objetos mutados por referência em outra função | análise de alias (pointer analysis) |
 | Nomes de função duplicados em módulos diferentes | dois `save()` | resumos indexados por módulo + nome |

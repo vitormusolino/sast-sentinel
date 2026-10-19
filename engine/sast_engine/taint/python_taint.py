@@ -26,6 +26,7 @@ from dataclasses import dataclass, field, replace
 from ..models import Finding, Severity, TraceStep
 from ..parsers.python_parser import ParsedModule
 from ..rules.catalog import RULES
+from ..rules.python_rules import is_shell_wrapper
 
 ALL = "*"
 
@@ -241,6 +242,7 @@ class FunctionAnalyzer:
         self.func_name = func_name
         self.return_taints: list[Taint] = []
         self.is_route = False
+        self.call_aliases: dict[str, str] = {}  # variável -> função perigosa que ela referencia
 
     # ---------------------------------------------------------------- sources
     def _source_for(self, qual: str) -> str | None:
@@ -318,8 +320,36 @@ class FunctionAnalyzer:
         self.bind(node.target, t, state, node)
         return t
 
+    def _resolve_callee(self, func: ast.AST) -> str:
+        """Nome qualificado da função chamada, resolvendo despacho dinâmico simples:
+        `getattr(os, "system")(x)` e `runner = getattr(os, "system"); runner(x)` -> os.system."""
+        if isinstance(func, ast.Name) and func.id in self.call_aliases:
+            return self.call_aliases[func.id]
+        resolved = self._getattr_target(func)
+        return resolved or self.m.qualname(func) or ""
+
+    def _getattr_target(self, node: ast.AST) -> str | None:
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "getattr" \
+                and len(node.args) >= 2 and isinstance(node.args[1], ast.Constant) \
+                and isinstance(node.args[1].value, str):
+            base = self.m.qualname(node.args[0])
+            return f"{base}.{node.args[1].value}" if base else None
+        return None
+
+    def _track_alias(self, target: ast.AST, value: ast.AST) -> None:
+        if not isinstance(target, ast.Name):
+            return
+        resolved = self._getattr_target(value)
+        if resolved is None and isinstance(value, (ast.Attribute, ast.Name)):
+            qual = self.m.qualname(value) or ""
+            resolved = qual if qual in SINKS else None
+        if resolved:
+            self.call_aliases[target.id] = resolved
+        else:
+            self.call_aliases.pop(target.id, None)
+
     def _eval_Call(self, node: ast.Call, state):
-        qual = self.m.qualname(node.func) or ""
+        qual = self._resolve_callee(node.func)
         short = qual.rsplit(".", 1)[-1] if qual else (node.func.attr if isinstance(node.func, ast.Attribute) else "")
         arg_taints = [self.eval(a, state) for a in node.args]
         kw_taints = {k.arg: self.eval(k.value, state) for k in node.keywords}
@@ -425,7 +455,8 @@ class FunctionAnalyzer:
             return
         if spec.require_shell:
             shell = next((k for k in node.keywords if k.arg == "shell"), None)
-            if not (shell and isinstance(shell.value, ast.Constant) and shell.value.value is True):
+            explicit = shell and isinstance(shell.value, ast.Constant) and shell.value.value is True
+            if not explicit and not (node.args and is_shell_wrapper(node.args[0])):
                 return
         candidates: list[Taint | None] = [arg_taints[i] for i in spec.args if i < len(arg_taints)]
         candidates += [kw_taints.get(k) for k in spec.kwargs]
@@ -505,6 +536,7 @@ class FunctionAnalyzer:
             t = self.eval(stmt.value, state)
             for target in stmt.targets:
                 self.bind(target, t, state, stmt)
+                self._track_alias(target, stmt.value)
         elif isinstance(stmt, ast.AnnAssign):
             if stmt.value is not None:
                 self.bind(stmt.target, self.eval(stmt.value, state), state, stmt)

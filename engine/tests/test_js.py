@@ -31,3 +31,9 @@ db.query("SELECT * FROM u WHERE id = ?", [id]);
 def test_js_suppression():
     findings, suppressed = analyze_javascript("a.js", "eval(x); // nosec\n")
     assert findings == [] and suppressed == 1
+
+
+def test_fetch_credentials_option_is_not_a_secret():
+    # falso positivo encontrado pelo dogfooding no próprio dashboard
+    assert ids('fetch(url, { credentials: "same-origin" });') == []
+    assert ids('const opts = { credentials: "include" };') == []

@@ -104,7 +104,7 @@ def outbound():
     return redirect(target)
 
 
-# --- 9. LIMITACAO: despacho dinamico via getattr
+# --- 9. despacho dinamico via getattr (era limitacao; resolvido para nome constante)
 @app.route("/dyn")
 def dynamic_dispatch():
     cmd = request.args.get("cmd")
@@ -113,7 +113,7 @@ def dynamic_dispatch():
     return {"ok": True}
 
 
-# --- 10. LIMITACAO: shell implicito via "sh -c" com lista
+# --- 10. shell implicito via "sh -c" com lista (era limitacao; resolvido)
 @app.route("/sh")
 def via_sh():
     script = request.args.get("script")

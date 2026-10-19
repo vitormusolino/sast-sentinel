@@ -16,7 +16,7 @@
 
 | Ferramenta | TP | FP | FN | Precisão | Recall | F1 |
 |---|---:|---:|---:|---:|---:|---:|
-| **SAST Sentinel (AST + taint)** | 48 | 2 | 2 | **96,0 %** | **96,0 %** | **0,96** |
+| **SAST Sentinel (AST + taint)** | 50 | 2 | 0 | **96,2 %** | **100 %** | **0,98** |
 | Bandit (sozinho, CWE normalizado) | 22 | 4 | 28 | 84,6 % | 44,0 % | 0,58 |
 | SAST Sentinel + Bandit (consenso) | 48 | 4 | 2 | 92,3 % | 96,0 % | 0,94 |
 
@@ -32,15 +32,11 @@ Por linguagem: **Java 11/11 detectadas, 0 FP** (`java_app` + `SafeController.jav
 - `hard_cases/views.py:104` (CWE-601): `if urlparse(target).netloc: target = "/"` é uma validação que o motor não modela. Um LLM entende isso, e é aqui que a triagem por IA atua.
 - `hard_cases/views.py:64` (CWE-89): SQL com f-string sobre `order_id`, que **é** inteiro (o taint sabe e não reporta), mas a regra de padrão PY006 dispara. É discutível: a recomendação de usar placeholder continua válida.
 
-**4. Os falsos negativos são limitações documentadas:**
-- `getattr(os, "system")(cmd)`: despacho dinâmico;
-- `subprocess.run(["sh", "-c", script])`: shell implícito sem `shell=True`.
-
-Ambos estão no roadmap ([MOTOR_SAST.md §5](MOTOR_SAST.md)).
+**4. Os falsos negativos foram eliminados** — eram `getattr(os, "system")(cmd)` (despacho dinâmico) e `subprocess.run(["sh", "-c", script])` (shell implícito). O motor passou a resolver `getattr` com nome constante e listas `sh/bash/cmd -c`. Continuam fora do alcance (e documentados em [MOTOR_SAST.md §5](MOTOR_SAST.md)) o `getattr` com nome calculado em tempo de execução e aliasing complexo — **recall 100 % no corpus não significa 100 % no mundo real**.
 
 **5. Ameaças à validade (honestidade científica):**
 - O corpus foi escrito pelo mesmo grupo que escreveu o motor, o que gera **viés de construção**. Mitigamos com `hard_cases/` (feito para quebrar o motor) e `safe_app/` (feito para gerar FPs), mas o número real em código de terceiros tende a ser menor.
-- O corpus é pequeno (39 vulnerabilidades). Próximos passos: rodar contra benchmarks públicos como o **OWASP Benchmark** (Java) e projetos propositalmente vulneráveis com licença aberta (ex.: *DVPWA*, *PyGoat*), respeitando as licenças.
+- O corpus é pequeno (50 vulnerabilidades). Próximos passos: rodar contra benchmarks públicos como o **OWASP Benchmark** (Java) e projetos propositalmente vulneráveis com licença aberta (ex.: *DVPWA*, *PyGoat*), respeitando as licenças.
 - A precisão da **IA** não está neste número: o benchmark roda sem LLM, para ser determinístico e reprodutível no CI.
 
 ## Evolução durante o desenvolvimento
@@ -51,3 +47,5 @@ Ambos estão no roadmap ([MOTOR_SAST.md §5](MOTOR_SAST.md)).
 | Mutação de containers (`append`) | +1 TP (`cleanup` em `hard_cases`) |
 | Guardas de allowlist (`if x not in ALLOWED: abort`) | −2 FP potenciais (`next_page`, `run_report`) |
 | Constantes de módulo em MAIÚSCULAS em SQL | −1 FP (`QUERY % TABLE`) |
+| Resolução de `getattr` constante e shell implícito `sh -c` | −2 FN (recall 96 % → 100 %) |
+| Valores de enumeração (`credentials: "same-origin"`) fora da regra de segredos | −1 FP (achado pelo dogfooding) |

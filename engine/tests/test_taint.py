@@ -187,3 +187,26 @@ def view():
     d.get(request.args.get("k"))
 """
     assert hits(code) == []
+
+
+def test_implicit_shell_via_sh_c_list():
+    code = FLASK + """
+def view():
+    s = request.args.get("s")
+    subprocess.run(["sh", "-c", s], check=True)
+    subprocess.run(["ls", s], check=True)
+"""
+    assert hits(code) == [("TAINT-CMDI", 6)]
+
+
+def test_dynamic_dispatch_with_getattr():
+    code = FLASK + """
+def view():
+    cmd = request.args.get("cmd")
+    runner = getattr(os, "system")
+    runner(cmd)
+    getattr(os, "popen")(cmd)
+    safe = getattr(os, "getcwd")
+    safe()
+"""
+    assert set(hits(code)) == {("TAINT-CMDI", 7), ("TAINT-CMDI", 8)}

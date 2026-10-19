@@ -4,9 +4,9 @@ Corpus: `samples`, 50 vulnerabilidades anotadas (gabarito `# EXPECT:`).
 
 | Ferramenta | TP | FP | FN | Precisão | Recall | F1 |
 |---|---:|---:|---:|---:|---:|---:|
-| SAST Sentinel (AST + taint) | 48 | 2 | 2 | 96.0% | 96.0% | 0.96 |
+| SAST Sentinel (AST + taint) | 50 | 2 | 0 | 96.2% | 100.0% | 0.98 |
 | Bandit (sozinho) | 22 | 4 | 28 | 84.6% | 44.0% | 0.58 |
-| SAST Sentinel + Bandit (consenso) | 48 | 4 | 2 | 92.3% | 96.0% | 0.94 |
+| SAST Sentinel + Bandit (consenso) | 50 | 4 | 0 | 92.6% | 100.0% | 0.96 |
 
 ## Por CWE (SAST Sentinel)
 
@@ -25,7 +25,7 @@ Corpus: `samples`, 50 vulnerabilidades anotadas (gabarito `# EXPECT:`).
 | CWE-605 | 1 | 0 | 0 | 100% | 100% |
 | CWE-611 | 2 | 0 | 0 | 100% | 100% |
 | CWE-703 | 1 | 0 | 0 | 100% | 100% |
-| CWE-78 | 6 | 0 | 2 | 100% | 75% |
+| CWE-78 | 8 | 0 | 0 | 100% | 100% |
 | CWE-79 | 4 | 0 | 0 | 100% | 100% |
 | CWE-798 | 6 | 0 | 0 | 100% | 100% |
 | CWE-89 | 7 | 1 | 0 | 88% | 100% |
@@ -36,8 +36,3 @@ Corpus: `samples`, 50 vulnerabilidades anotadas (gabarito `# EXPECT:`).
 
 - `hard_cases/views.py:104 CWE-601`
 - `hard_cases/views.py:64 CWE-89`
-
-### Falsos negativos
-
-- `hard_cases/views.py:112 CWE-78`
-- `hard_cases/views.py:120 CWE-78`

@@ -35,7 +35,10 @@ PLACEHOLDER_RE = re.compile(
     re.IGNORECASE,
 )
 COMMON_WORDS = {"password", "passwd", "secret", "token", "api_key", "apikey", "pwd", "key", "bearer", "basic",
-                "senha", "segredo", "chave", "usuario", "usuário"}
+                "senha", "segredo", "chave", "usuario", "usuário",
+                # valores de enumeração de APIs comuns: fetch({credentials: "same-origin"}), tipos de token, etc.
+                "same-origin", "include", "omit", "required", "optional", "none", "true", "false",
+                "access_token", "refresh_token", "client_credentials", "authorization_code"}
 
 TOKEN_PATTERNS = [
     (re.compile(r"AKIA[0-9A-Z]{16}"), "chave de acesso AWS"),
@@ -95,6 +98,18 @@ def is_literal(node: ast.AST | None) -> bool:
     if isinstance(node, ast.JoinedStr):
         return all(isinstance(v, ast.Constant) for v in node.values)
     return False
+
+
+SHELL_BINARIES = {"sh", "bash", "zsh", "dash", "/bin/sh", "/bin/bash", "/usr/bin/bash", "cmd", "cmd.exe",
+                  "powershell", "powershell.exe", "pwsh"}
+SHELL_FLAGS = {"-c", "/c", "/C", "-Command", "-command"}
+
+
+def is_shell_wrapper(node: ast.AST | None) -> bool:
+    """`["sh", "-c", cmd]`: lista que delega ao shell (shell implícito, mesmo risco de shell=True)."""
+    return (isinstance(node, (ast.List, ast.Tuple)) and len(node.elts) >= 3
+            and is_constant_str(node.elts[0]) and node.elts[0].value in SHELL_BINARIES  # type: ignore[attr-defined]
+            and is_constant_str(node.elts[1]) and node.elts[1].value in SHELL_FLAGS)  # type: ignore[attr-defined]
 
 
 def kw(call: ast.Call, name: str) -> ast.keyword | None:
@@ -315,6 +330,9 @@ class PythonRuleVisitor(ast.NodeVisitor):
         elif name in SUBPROCESS_FUNCS and kw_is(node, "shell", True):
             sev = Severity.LOW if is_literal(first) else Severity.HIGH
             self.add("PY003", node, f"{name}() chamado com shell=True.", severity=sev)
+        elif name in SUBPROCESS_FUNCS and is_shell_wrapper(first) and not is_literal(first):
+            self.add("PY003", node, f"{name}() executa o comando via '{first.elts[0].value} {first.elts[1].value}' "  # type: ignore[union-attr]
+                                    "(shell implícito, equivalente a shell=True).")
 
         # PY004 - desserialização
         elif name in DESERIALIZERS:
